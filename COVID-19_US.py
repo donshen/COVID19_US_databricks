@@ -1,9 +1,9 @@
 # Databricks notebook source
-# MAGIC %md #A Study on Correlation of Conty-Wide US Demographics and Economy on COVID-19 Pandemic
+# MAGIC %md #A Study on Correlation of County-Wide US Demographics and Economy on COVID-19 Pandemic
 
 # COMMAND ----------
 
-# MAGIC %md Let's visualize how bad the US situation is compared with the rest of the world, in a timeline.
+# MAGIC %md Let's visualize how bad the US situation is compared with the rest of the world, with a timeline.
 
 # COMMAND ----------
 
@@ -57,15 +57,15 @@ from pyspark.sql.types import IntegerType
 
 # COMMAND ----------
 
-url_us_case = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv'
-url_us_death = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_US.csv'
-url_population = 'https://raw.githubusercontent.com/donshen/COVID19_US_databricks/master/data/PopulationEstimates.csv'
-url_poverty = 'https://raw.githubusercontent.com/donshen/COVID19_US_databricks/master/data/PovertyEstimates.csv'
-url_unemployment = 'https://raw.githubusercontent.com/donshen/COVID19_US_databricks/master/data/Unemployment.csv'
+# MAGIC %md Load and display COVID-19-US datasets (Updated till May 4th, 2020), as well as population, unemployment, and poverty datasets as spark dataframes
 
 # COMMAND ----------
 
-# MAGIC %md Load and display COVID-19-US datasets, as well as population, unemployment, and poverty datasets as spark dataframes
+url_us_case = 'https://raw.githubusercontent.com/donshen/COVID19_US_databricks/master/data/time_series_covid19_confirmed_US_200504.csv'
+url_us_death = 'https://raw.githubusercontent.com/donshen/COVID19_US_databricks/master/data/time_series_covid19_deaths_US_200504.csv'
+url_population = 'https://raw.githubusercontent.com/donshen/COVID19_US_databricks/master/data/PopulationEstimates.csv'
+url_poverty = 'https://raw.githubusercontent.com/donshen/COVID19_US_databricks/master/data/PovertyEstimates.csv'
+url_unemployment = 'https://raw.githubusercontent.com/donshen/COVID19_US_databricks/master/data/Unemployment.csv'
 
 # COMMAND ----------
 
@@ -123,20 +123,6 @@ US_stat = US_stat.withColumn("FIPS",F.format_string("%05d","FIPS"))
 US_stat = US_stat.filter((US_stat.Population != 0) & (US_stat.Cases >= US_stat.Deaths) & (US_stat.Population >= US_stat.Cases))
 
 US_stat.show()
-
-# COMMAND ----------
-
-# MAGIC %r 
-# MAGIC url_us_case = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv'
-# MAGIC url_us_death = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_US.csv'
-# MAGIC url_population = 'https://raw.githubusercontent.com/donshen/COVID19_US_databricks/master/data/PopulationEstimates.csv'
-# MAGIC url_poverty = 'https://raw.githubusercontent.com/donshen/COVID19_US_databricks/master/data/PovertyEstimates.csv'
-# MAGIC url_unemployment = 'https://raw.githubusercontent.com/donshen/COVID19_US_databricks/master/data/Unemployment.csv'
-# MAGIC US_case <- read.csv(url(url_us_case))
-# MAGIC US_death <- read.csv(url(url_us_death))
-# MAGIC population_df <- read.csv(url(url_population))
-# MAGIC poverty_df <- read.csv(url(url_poverty))
-# MAGIC unemployment_df <- read.csv(url(url_unemployment))
 
 # COMMAND ----------
 
@@ -597,18 +583,66 @@ neg = [Y_fatality < 0.01]
 Y_fatality_response = np.array(Y_fatality)
 Y_fatality_response[pos] = 1
 Y_fatality_response[neg] = 0
-sum(Y_fatality_response)
-
-# COMMAND ----------
 
 # First XGBoost model 
-
-
 seed = 7
 test_size = 0.33
 X_train, X_test, y_train, y_test = train_test_split(X,Y_fatality_response, test_size=test_size, random_state=seed)
-# fit model no training data
-model = XGBClassifier()
+
+# COMMAND ----------
+
+# MAGIC %md Hyper-parameter tuning for XGBoost using RandomizedSearchCV
+
+# COMMAND ----------
+
+from sklearn.model_selection import RandomizedSearchCV
+import scipy.stats as stats
+
+clf = XGBClassifier(n_estimators=500)
+
+param_dist = {'max_depth': np.arange(5, 10),
+              'colsample_bytree': np.arange(0.6,1,0.1),
+              'subsample': np.arange(0.6,1,0.1),
+              'eta': np.logspace(-2, 0, 10)
+             }
+
+n_iter_search = 20
+
+random_search = RandomizedSearchCV(
+    clf,
+    param_distributions=param_dist,
+    n_iter=n_iter_search,
+    cv=5,
+    scoring='accuracy'
+)
+
+random_search.fit(
+    X_train,
+    y_train,
+    eval_metric='logloss',
+    eval_set=[(X_train, y_train), (X_test, y_test)],
+    verbose=50,
+    early_stopping_rounds = 20
+)
+
+# COMMAND ----------
+
+# best estimator
+print(random_search.best_estimator_)
+
+# COMMAND ----------
+
+# fit model with training data using the optimized parameters
+model = XGBClassifier(base_score=0.5, booster=None, colsample_bylevel=1,
+       colsample_bynode=1, colsample_bytree=0.7999999999999999,
+       eta=0.0774263682681127, gamma=0, gpu_id=-1, importance_type='gain',
+       interaction_constraints=None, learning_rate=0.0774263665,
+       max_delta_step=0, max_depth=5, min_child_weight=1, missing=None,
+       monotone_constraints=None, n_estimators=500, n_jobs=0,
+       num_parallel_tree=1, objective='binary:logistic', random_state=0,
+       reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
+       subsample=0.7999999999999999, tree_method=None,
+       validate_parameters=False, verbosity=None)
 model.fit(X_train, y_train)
 # make predictions for test data
 y_pred = model.predict(X_test)
@@ -616,6 +650,10 @@ predictions = [round(value) for value in y_pred]
 # evaluate predictions
 accuracy = accuracy_score(y_test, predictions)
 print("Accuracy: %.2f%%" % (accuracy * 100.0))
+
+# COMMAND ----------
+
+# MAGIC %md Calculate precision, recall, and F1 score of the model
 
 # COMMAND ----------
 
@@ -656,8 +694,7 @@ fig.show()
 
 # COMMAND ----------
 
-
-
+# Tain-test split
 pos = Y_infection>=0.001
 Y_infection_response = np.zeros(len(Y_infection))
 Y_infection_response[pos] = 1
@@ -666,8 +703,53 @@ Y_infection_response[pos] = 1
 seed = 7
 test_size = 0.33
 X_train, X_test, y_train, y_test = train_test_split(X, Y_infection_response, test_size=test_size, random_state=seed)
-# fit model no training data
-model = XGBClassifier()
+
+# COMMAND ----------
+
+clf = XGBClassifier(n_estimators=500)
+
+param_dist = {'max_depth': np.arange(5, 10),
+              'colsample_bytree': np.arange(0.6,1,0.1),
+              'subsample': np.arange(0.6,1,0.1),
+              'eta': np.logspace(-2, 0, 10)
+             }
+
+n_iter_search = 20
+
+random_search = RandomizedSearchCV(
+    clf,
+    param_distributions=param_dist,
+    n_iter=n_iter_search,
+    cv=5,
+    scoring='accuracy'
+)
+
+random_search.fit(
+    X_train,
+    y_train,
+    eval_metric='logloss',
+    eval_set=[(X_train, y_train), (X_test, y_test)],
+    verbose=50,
+    early_stopping_rounds = 20
+)
+
+# COMMAND ----------
+
+# best estimator
+print(random_search.best_estimator_)
+
+# COMMAND ----------
+
+# fit the XGBoost model with optimized parameters 
+model = XGBClassifier(base_score=0.5, booster=None, colsample_bylevel=1,
+       colsample_bynode=1, colsample_bytree=0.7, eta=0.01, gamma=0,
+       gpu_id=-1, importance_type='gain', interaction_constraints=None,
+       learning_rate=0.00999999978, max_delta_step=0, max_depth=9,
+       min_child_weight=1, missing=None, monotone_constraints=None,
+       n_estimators=500, n_jobs=0, num_parallel_tree=1,
+       objective='binary:logistic', random_state=0, reg_alpha=0,
+       reg_lambda=1, scale_pos_weight=1, subsample=0.7999999999999999,
+       tree_method=None, validate_parameters=False, verbosity=None)
 model.fit(X_train, y_train)
 # make predictions for test data
 y_pred = model.predict(X_test)
@@ -704,7 +786,7 @@ fig.show()
 
 import xgboost as xgb
 xgb.plot_importance(model)
-plt.rcParams['figure.figsize'] = [10,10]
+plt.rcParams['figure.figsize'] = [15,15]
 display()
 
 # COMMAND ----------
@@ -952,5 +1034,9 @@ true_val = y.values.copy()
 residual = true_val - pred_val
 fig, ax = plt.subplots(figsize=(8,4))
 ax.scatter(true_val,residual,alpha = 0.6)
-ax.set_xlabel('log0(1+Y_death)')
+ax.set_xlabel('log10(1+Y_death)')
 ax.set_ylabel('Residual')
+
+# COMMAND ----------
+
+
