@@ -1,5 +1,5 @@
 # Databricks notebook source
-# MAGIC %md #A Study on Correlation of County-Wide US Demographics and Economy on COVID-19 Pandemic
+# MAGIC %md #A Study on Correlation of County-Wide US Demographics and Economy on COVID-19 Pandemic (Updated Aug 19th, 2020)
 
 # COMMAND ----------
 
@@ -9,7 +9,7 @@
 
 #How corona virus infection grows world-wide?
 from IPython.core.display import HTML
-HTML('''<div class="flourish-embed flourish-bar-chart-race" data-src="visualisation/1872044" data-url="https://flo.uri.sh/visualisation/1872044/embed"><script src="https://public.flourish.studio/resources/embed.js"></script></div>''')
+HTML('''<div class="flourish-embed flourish-bar-chart-race" data-src="visualisation/1872044"><script src="https://public.flourish.studio/resources/embed.js"></script></div>''')
 
 # COMMAND ----------
 
@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 %matplotlib inline
 import plotly.express as px
 import plotly.graph_objs as go
-import plotly.figure_factory as ff
+#import plotly.figure_factory as ff
 from plotly.subplots import make_subplots
 from urllib.request import urlopen
 import sys
@@ -61,8 +61,8 @@ from pyspark.sql.types import IntegerType
 
 # COMMAND ----------
 
-url_us_case = 'https://raw.githubusercontent.com/donshen/COVID19_US_databricks/master/data/time_series_covid19_confirmed_US_200504.csv'
-url_us_death = 'https://raw.githubusercontent.com/donshen/COVID19_US_databricks/master/data/time_series_covid19_deaths_US_200504.csv'
+url_us_case = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv'
+url_us_death = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_US.csv'
 url_population = 'https://raw.githubusercontent.com/donshen/COVID19_US_databricks/master/data/PopulationEstimates.csv'
 url_poverty = 'https://raw.githubusercontent.com/donshen/COVID19_US_databricks/master/data/PovertyEstimates.csv'
 url_unemployment = 'https://raw.githubusercontent.com/donshen/COVID19_US_databricks/master/data/Unemployment.csv'
@@ -219,7 +219,7 @@ US_stat.orderBy("Cases",ascending =False).limit(10).show()
 US_stat.orderBy("InfectionRate",ascending =False).limit(10).show()
 fig = px.choropleth(df1, geojson=counties, locations='FIPS', color='InfectionRate',       
                     color_continuous_scale="viridis",
-                    range_color=(0,np.max(df1.InfectionRate)/10),
+                    range_color=(0,np.max(df1.InfectionRate)/5),
                     scope="usa",  
                    )
 fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
@@ -314,17 +314,17 @@ param_a = np.zeros(n_counties)
 param_tau = np.zeros(n_counties)
 nrow = 4
 ncol = 2
-fig, ax = plt.subplots(nrow,ncol,figsize=(12,12))
+fig, ax = plt.subplots(nrow,ncol,figsize=(18,12))
 
 for i in range(n_counties):
   try:
     ydata = top_case_array[i,:]
-    popt, pcov = curve_fit(func, xdata, ydata, absolute_sigma=True, p0 = np.array([50000,5000000,6]), maxfev = 1000000)
+    popt, pcov = curve_fit(func, xdata, ydata, absolute_sigma=True, p0 = np.array([70000,500000,6]), maxfev = 7000000)
 
     ax[int(np.floor(i/ncol)),i%ncol].plot_date(x_dates, ydata, 'b-', label='data')
     ax[int(np.floor(i/ncol)),i%ncol].plot_date(x_dates, func(xdata, *popt), 
                                             'g--', label='logistic: a=%5.3f, tau=%5.3f' % tuple([popt[0],popt[2]]))
-    ax[int(np.floor(i/ncol)),i%ncol].xaxis.set_major_locator(mdates.WeekdayLocator())
+    ax[int(np.floor(i/ncol)),i%ncol].xaxis.set_major_locator(mdates.MonthLocator())
     ax[int(np.floor(i/ncol)),i%ncol].xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
     
     ax[int(np.floor(i/ncol)),i%ncol].set_ylabel('Total Cases')
@@ -357,6 +357,7 @@ fig, ax1 = plt.subplots()
 rects1 = ax1.bar(x - width/2, param_a, width, label='predicted maximum cases', color = 'blue',alpha = 0.6)
 ax1.set_ylabel('Predicted maximum cases')
 ax1.set_xticks(x)
+ax1.set_ylim([0,5e5])
 ax1.set_xticklabels(US_case_top_pd['Combined_Key'],rotation = 80)
 
 
@@ -401,17 +402,17 @@ param_a = np.zeros(n_counties)
 param_tau = np.zeros(n_counties)
 nrow = 4
 ncol = 2
-fig, ax = plt.subplots(nrow,ncol,figsize=(12,12))
+fig, ax = plt.subplots(nrow,ncol,figsize=(18,12))
 
 for i in range(n_counties):
   try:
     ydata = top_death_array[i,:]
-    popt, pcov = curve_fit(func, xdata, ydata, absolute_sigma=True, p0 = np.array([2000,500000,6]), maxfev = 1000000)
+    popt, pcov = curve_fit(func, xdata, ydata, absolute_sigma=True, p0 = np.array([4500,600000,6]), maxfev = 1000000)
 
     ax[int(np.floor(i/ncol)),i%ncol].plot_date(x_dates, ydata, 'b-', label='data')
     ax[int(np.floor(i/ncol)),i%ncol].plot_date(x_dates, func(xdata, *popt), 
                                             'g--', label='logistic: a=%5.3f, tau=%5.3f' % tuple([popt[0],popt[2]]))
-    ax[int(np.floor(i/ncol)),i%ncol].xaxis.set_major_locator(mdates.WeekdayLocator())
+    ax[int(np.floor(i/ncol)),i%ncol].xaxis.set_major_locator(mdates.MonthLocator())
     ax[int(np.floor(i/ncol)),i%ncol].xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
     
     ax[int(np.floor(i/ncol)),i%ncol].set_ylabel('Total Deaths')
@@ -554,7 +555,7 @@ loadings = pca_train.components_.T * np.sqrt(pca_train.explained_variance_)
 
 X_pc_test = np.dot(np.asarray(X_test),np.asarray(loadings))
 
-n_pc = 12
+n_pc = 15
 reg = LinearRegression().fit(X_pc_test[Y_test>0,:n_pc+1], np.log10(Y_test[Y_test>0]))
 reg.score(X_pc_test[Y_test>0,:n_pc+1], np.log10(Y_test[Y_test>0]))
 plt.scatter(reg.predict(X_pc_test[Y_test>0,:n_pc+1]),np.log10(Y_test[Y_test>0]), color='crimson',alpha=0.6)
@@ -567,7 +568,7 @@ display()
 
 # COMMAND ----------
 
-# MAGIC %md # Implement Machine Learning (XGBoost) 
+# MAGIC %md # Implement XGBoost
 # MAGIC predicting COVID-19 stats from population, unemployment, and poverty Data
 
 # COMMAND ----------
@@ -633,16 +634,16 @@ print(random_search.best_estimator_)
 # COMMAND ----------
 
 # fit model with training data using the optimized parameters
-model = XGBClassifier(base_score=0.5, booster=None, colsample_bylevel=1,
+model = XGBClassifier(base_score=0.5, booster='gbtree', colsample_bylevel=1,
        colsample_bynode=1, colsample_bytree=0.7999999999999999,
-       eta=0.0774263682681127, gamma=0, gpu_id=-1, importance_type='gain',
-       interaction_constraints=None, learning_rate=0.0774263665,
-       max_delta_step=0, max_depth=5, min_child_weight=1, missing=None,
-       monotone_constraints=None, n_estimators=500, n_jobs=0,
-       num_parallel_tree=1, objective='binary:logistic', random_state=0,
-       reg_alpha=0, reg_lambda=1, scale_pos_weight=1,
-       subsample=0.7999999999999999, tree_method=None,
-       validate_parameters=False, verbosity=None)
+       eta=0.027825594022071243, gamma=0, gpu_id=-1,
+       importance_type='gain', interaction_constraints='',
+       learning_rate=0.0278255939, max_delta_step=0, max_depth=6,
+       min_child_weight=1, missing=None, monotone_constraints='()',
+       n_estimators=500, n_jobs=0, num_parallel_tree=1,
+       objective='binary:logistic', random_state=0, reg_alpha=0,
+       reg_lambda=1, scale_pos_weight=1, subsample=0.6,
+       tree_method='exact', validate_parameters=1, verbosity=None)
 model.fit(X_train, y_train)
 # make predictions for test data
 y_pred = model.predict(X_test)
@@ -690,12 +691,12 @@ fig.show()
 
 # COMMAND ----------
 
-# MAGIC %md Classification on whether a county is considered as highly infected (0.1% of population got infected to-date)
+# MAGIC %md Classification on whether a county is considered as highly infected (> 1% of population got infected to-date)
 
 # COMMAND ----------
 
 # Tain-test split
-pos = Y_infection>=0.001
+pos = Y_infection>=0.01
 Y_infection_response = np.zeros(len(Y_infection))
 Y_infection_response[pos] = 1
 
@@ -741,15 +742,15 @@ print(random_search.best_estimator_)
 # COMMAND ----------
 
 # fit the XGBoost model with optimized parameters 
-model = XGBClassifier(base_score=0.5, booster=None, colsample_bylevel=1,
+model = XGBClassifier(base_score=0.5, booster='gbtree', colsample_bylevel=1,
        colsample_bynode=1, colsample_bytree=0.7, eta=0.01, gamma=0,
-       gpu_id=-1, importance_type='gain', interaction_constraints=None,
-       learning_rate=0.00999999978, max_delta_step=0, max_depth=9,
-       min_child_weight=1, missing=None, monotone_constraints=None,
+       gpu_id=-1, importance_type='gain', interaction_constraints='',
+       learning_rate=0.00999999978, max_delta_step=0, max_depth=8,
+       min_child_weight=1, missing=None, monotone_constraints='()',
        n_estimators=500, n_jobs=0, num_parallel_tree=1,
        objective='binary:logistic', random_state=0, reg_alpha=0,
-       reg_lambda=1, scale_pos_weight=1, subsample=0.7999999999999999,
-       tree_method=None, validate_parameters=False, verbosity=None)
+       reg_lambda=1, scale_pos_weight=1, subsample=0.7,
+       tree_method='exact', validate_parameters=1, verbosity=None)
 model.fit(X_train, y_train)
 # make predictions for test data
 y_pred = model.predict(X_test)
@@ -768,8 +769,8 @@ print("Precison: %.2f\nRecall: %.2f\nF1 score:  %.2f" % (precision, recall, f1))
 
 # COMMAND ----------
 
-temp  = pd.concat([US_stat_pd,pd.DataFrame(Y_infection_response,columns = ['Infection>0.001'])],axis =1)
-fig = px.choropleth(temp, geojson=counties, locations='FIPS', color='Infection>0.001',       
+temp  = pd.concat([US_stat_pd,pd.DataFrame(Y_infection_response,columns = ['Infection>0.005'])],axis =1)
+fig = px.choropleth(temp, geojson=counties, locations='FIPS', color='Infection>0.005',       
                     color_continuous_scale='viridis',
                     range_color=(0,1),
                     scope="usa",  
@@ -1036,7 +1037,3 @@ fig, ax = plt.subplots(figsize=(8,4))
 ax.scatter(true_val,residual,alpha = 0.6)
 ax.set_xlabel('log10(1+Y_death)')
 ax.set_ylabel('Residual')
-
-# COMMAND ----------
-
-
